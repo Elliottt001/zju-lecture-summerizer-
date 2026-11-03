@@ -14,7 +14,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -82,6 +82,49 @@ def parse_url(url):
 
 
 # ---------------------------------------------------------------- 字幕抓取
+
+def fetch_course_info(course_id, sub_id, tenant_code="112", cookie=None, timeout=30):
+    """回放详情中的 course_title 和 class_begin 是课程名和上课时间。"""
+    query = urllib.parse.urlencode({
+        "course_id": course_id, "sub_id": sub_id, "tenant_code": tenant_code})
+    headers = {"User-Agent": UA}
+    if cookie:
+        headers["Cookie"] = cookie
+    req = urllib.request.Request(
+        f"{BASE}/courseapi/v3/multi-search/get-sub-detail?{query}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as r:
+            data = json.load(r)
+        if data.get("code") != 0 or not isinstance(data.get("data"), dict):
+            raise ValueError(f"{data.get('msg')}（code={data.get('code')}）")
+        return data["data"]
+    except Exception as e:
+        raise PipelineError(f"课程信息获取失败：{e}") from e
+
+
+def create_result_dir(out_root, course, sub_id):
+    """按课程名和北京时间的上课日期建目录，重名时追加序号。"""
+    name = (course.get("course_title") or f"课程_sub{sub_id}").strip()
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", name).rstrip(" .")
+    name = name or f"课程_sub{sub_id}"
+    try:
+        begin = int(course.get("class_begin") or 0)
+        if begin <= 0:
+            raise ValueError("缺少上课时间")
+        date = datetime.fromtimestamp(begin, timezone(timedelta(hours=8))).strftime("%m.%d")
+    except (ValueError, TypeError, OverflowError, OSError):
+        date = "日期未知"
+    os.makedirs(out_root, exist_ok=True)
+    base = os.path.join(out_root, f"{name}-{date}")
+    index = 1
+    while True:
+        path = base if index == 1 else f"{base}（{index}）"
+        try:
+            os.mkdir(path)
+            return path
+        except FileExistsError:
+            index += 1
+
 
 def fetch_transcript(sub_id, tenant_code="112", timeout=60):
     """公开接口，无需登录。返回 [(BeginSec, Text), ...] 按时间排序。"""
@@ -480,8 +523,15 @@ def run_pipeline(url, api_key=None, cookie=None, out_root=None, progress=None,
     sub_id, tenant = info["sub_id"], info["tenant_code"]
     _log(progress, f"   course_id={info['course_id']}  sub_id={sub_id}")
 
-    result_dir = os.path.join(
-        out_root, f"{datetime.now():%Y%m%d}_sub{sub_id}")
+    try:
+        course = fetch_course_info(info["course_id"], sub_id, tenant, cookie)
+    except PipelineError as e:
+        _log(progress, f"   {e}")
+        course = {}
+    if not course.get("course_title") or not course.get("class_begin"):
+        _log(progress, "   课程名或上课日期缺失，目录将使用课程编号或「日期未知」")
+    result_dir = create_result_dir(out_root, course, sub_id)
+    _log(progress, f"   保存目录：{os.path.basename(result_dir)}")
     raw_dir = os.path.join(result_dir, "raw")
     os.makedirs(raw_dir, exist_ok=True)
 
