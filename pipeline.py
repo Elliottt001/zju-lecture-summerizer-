@@ -66,14 +66,16 @@ def _log(progress, msg):
 # ---------------------------------------------------------------- URL 解析
 
 def parse_url(url):
-    """从 livingroom 回放 URL 里提取 course_id / sub_id / tenant_code。"""
+    """从 livingroom 或 #/replay 回放 URL 里提取课程参数。"""
     try:
-        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        parsed = urllib.parse.urlparse(url)
+        q = urllib.parse.parse_qs(
+            parsed.query or urllib.parse.urlparse(parsed.fragment).query)
     except Exception:
         raise PipelineError("URL 无法解析，请粘贴浏览器地址栏的完整链接")
     sub_id = q.get("sub_id", [None])[0]
     if not sub_id:
-        raise PipelineError("URL 里找不到 sub_id 参数，请确认是 livingroom 回放页地址")
+        raise PipelineError("URL 里找不到 sub_id 参数，请粘贴完整的 livingroom 或 #/replay 回放链接")
     return {
         "course_id": q.get("course_id", [""])[0],
         "sub_id": sub_id,

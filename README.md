@@ -63,7 +63,7 @@ python3 pipeline.py "<回放URL>"   # 纯命令行
 
 在页面里：
 
-1. 粘贴回放地址（形如 `https://classroom.zju.edu.cn/livingroom?course_id=...&sub_id=...`）；
+1. 粘贴回放地址，支持 `https://classroom.zju.edu.cn/livingroom?course_id=...&sub_id=...` 和 `https://interactivemeta.cmc.zju.edu.cn/#/replay?course_id=87705&sub_id=1984223&tenant_code=112`；
 2. 填 DeepSeek API key（[platform.deepseek.com](https://platform.deepseek.com) 申请；留空则只抓字幕不总结）；
 3. 点「自动读取 Edge 登录态」或手动粘贴 Cookie（**均可不填**，字幕接口公开）；
 4. 点「开始」，完成后点「下载总结文档」把讲义保存到自己电脑。
@@ -90,7 +90,7 @@ raw/video.mp4 / audio.mp3      （增强识别模式）视频与音频
 ## 工作原理 How It Works
 
 ```
-livingroom URL ──解析──▶ sub_id
+livingroom / #/replay URL ──解析──▶ sub_id
                           │
         公开字幕接口 GET ◀─┘  （无需登录）
                           │

@@ -173,7 +173,7 @@ PAGE = """<!doctype html>
   <div class="card">
     <label>回放地址 <span style="color:var(--err)">*</span></label>
     <input type="text" id="url"
-      placeholder="https://classroom.zju.edu.cn/livingroom?course_id=...&sub_id=...">
+      placeholder="支持 classroom 的 livingroom 和 interactivemeta 的 #/replay 回放链接">
 
     <label>总结模式</label>
     <div class="modes">
@@ -656,8 +656,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"error": "请求体解析失败"}, 400)
             return
         url = (body.get("url") or "").strip()
-        if not re.search(r"sub_id=", url):
-            self._json({"error": "地址里找不到 sub_id，请粘贴完整的 livingroom 回放链接"})
+        try:
+            pipeline.parse_url(url)
+        except pipeline.PipelineError as e:
+            self._json({"error": str(e)})
             return
         mode = body.get("mode") or "summarize"
         if mode not in ("transcript", "summarize", "enhanced"):
