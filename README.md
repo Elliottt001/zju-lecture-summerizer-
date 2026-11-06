@@ -11,7 +11,7 @@
 
 ## 功能 Features
 
-- **抓字幕**：调用智云课堂公开字幕接口，无需登录即可拿到整节课的语音识别文本
+- **抓字幕**：调用智云课堂字幕接口，支持从登录 Cookie 提取 API 令牌
 - **单次请求总结**：整课字幕一次性交给 DeepSeek 生成完整讲义，前后一致、不并行；仅当超出模型上下文时自动退化为顺序分块+合并
 - **课件参考**：可上传 pptx / docx / txt / md 课件，提取文字注入总结，校准术语、帮助抓住重点
 - **下载交付**：完成后界面提供「下载总结文档」「下载全部资料（zip）」按钮，文件直接存到你自己的下载目录
@@ -23,7 +23,7 @@
 
 | 模式 | 流程 | 需要 | 适用 |
 |---|---|---|---|
-| 只抓字幕 | 平台字幕接口 → 字幕全文 | 无 | 存档字幕、不耗额度 |
+| 只抓字幕 | 平台字幕接口 → 字幕全文 | 接口要求鉴权时需登录 Cookie | 存档字幕、不耗额度 |
 | 字幕 + AI 总结（默认） | 平台字幕 → DeepSeek 单次请求总结 | DeepSeek key | 绝大多数课 |
 | 增强识别 + AI 总结 | 下载视频 → ffmpeg 抽音频 → **Whisper large-v3 重新识别**（带课程术语提示）→ 总结 | key + ffmpeg + `pip install faster-whisper` | 口音重、平台字幕术语识别不准的课 |
 
@@ -65,7 +65,7 @@ python3 pipeline.py "<回放URL>"   # 纯命令行
 
 1. 粘贴回放地址（形如 `https://classroom.zju.edu.cn/livingroom?course_id=...&sub_id=...`）；
 2. 填 DeepSeek API key（[platform.deepseek.com](https://platform.deepseek.com) 申请；留空则只抓字幕不总结）；
-3. 点「自动读取 Edge 登录态」或手动粘贴 Cookie（**均可不填**，字幕接口公开）；
+3. 点「自动读取 Edge 登录态」或手动粘贴浏览器登录后的 Cookie；字幕接口返回 401 / 403 时必须提供包含 `_token` 的有效 Cookie；
 4. 点「开始」，完成后点「下载总结文档」把讲义保存到自己电脑。
 
 也可以不用界面，直接命令行：
@@ -92,7 +92,7 @@ raw/video.mp4 / audio.mp3      （增强识别模式）视频与音频
 ```
 livingroom URL ──解析──▶ sub_id
                           │
-        公开字幕接口 GET ◀─┘  （无需登录）
+        字幕接口 GET ◀────┘  （支持 Cookie + API 令牌鉴权）
                           │
               按分钟合并 → 按 ~11k 字分块
                           │
@@ -101,7 +101,7 @@ livingroom URL ──解析──▶ sub_id
               DeepSeek 合并 → 知识总结.md
 ```
 
-- 字幕接口：`courseapi/v3/web-socket/search-trans-result?sub_id=...`（公开）
+- 字幕接口：`courseapi/v3/web-socket/search-trans-result?sub_id=...`；鉴权时将 Cookie 中的 `_token` 解码，并按课堂网页的方式传入 `Authorization` 请求头
 - 自动读 Cookie：直接读 Edge 本地数据库并解密——
   - macOS：`~/Library/Application Support/Microsoft Edge/*/Cookies`，
     Keychain 里的 `Microsoft Edge Safe Storage` 主密码 + PBKDF2-SHA1(1003) + AES-128-CBC
@@ -111,7 +111,7 @@ livingroom URL ──解析──▶ sub_id
 
 ## 常见问题 FAQ
 
-- **需要登录吗？** 字幕总结不需要。Cookie 只用于可选的 PPT 文字层增强，抓不到会自动降级。
+- **需要登录吗？** 接口返回 401 / 403 时需要。先在浏览器登录智云课堂，再复制请求头中包含 `_token` 的完整 Cookie；登录态过期后需更新。
 - **macOS 首次运行弹钥匙串框？** 点"允许"（建议"始终允许"）。若报权限不足：
   系统设置 → 隐私与安全性 → 完全磁盘访问权限 → 添加你的终端。
 - **401 / 402 / 429？** 分别是 DeepSeek key 错误 / 余额不足 / 限流（脚本自动退避重试）。
