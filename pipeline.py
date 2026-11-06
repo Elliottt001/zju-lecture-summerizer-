@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 智云课堂回放 → 课程知识总结 流水线
-只用 Python 标准库。核心输入是语音字幕（公开接口），可选增强是登录 Cookie 抓 PPT。
+只用 Python 标准库。核心输入是语音字幕，鉴权接口使用登录 Cookie，可选增强是抓 PPT。
 """
 import json
 import os
@@ -83,16 +83,34 @@ def parse_url(url):
 
 # ---------------------------------------------------------------- 字幕抓取
 
-def fetch_transcript(sub_id, tenant_code="112", timeout=60):
-    """公开接口，无需登录。返回 [(BeginSec, Text), ...] 按时间排序。"""
+def _classroom_headers(cookie=None):
+    """与课堂网页一致：从序列化的 _token Cookie 提取 API 登录令牌。"""
+    headers = {"User-Agent": UA}
+    if cookie:
+        headers["Cookie"] = cookie
+        token_cookie = re.search(r"(?:^|;\s*)_token=([^;]+)", cookie)
+        if token_cookie:
+            token = re.search(r'{i:\d+;s:\d+:"_token";i:\d+;s:\d+:"(.+?)";}',
+                              urllib.parse.unquote(token_cookie[1]))
+            if token:
+                headers["Authorization"] = token[1]
+    return headers
+
+
+def fetch_transcript(sub_id, tenant_code="112", timeout=60, cookie=None):
+    """字幕接口支持登录鉴权。返回 [(BeginSec, Text), ...] 按时间排序。"""
     url = (f"{BASE}/courseapi/v3/web-socket/search-trans-result"
            f"?sub_id={sub_id}&tenant_code={tenant_code}")
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    req = urllib.request.Request(url, headers=_classroom_headers(cookie))
     try:
         with urllib.request.urlopen(req, timeout=timeout,
                                                 context=SSL_CTX) as r:
             data = json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise PipelineError(f"字幕接口返回 HTTP {e.code}：需要有效登录态。"
+                                "请先在浏览器登录智云课堂，再填写最新 Cookie"
+                                "（包含 _token）后重试。") from e
         raise PipelineError(f"字幕接口返回 HTTP {e.code}")
     except Exception as e:
         raise PipelineError(f"字幕接口请求失败：{e}")
@@ -509,8 +527,8 @@ def run_pipeline(url, api_key=None, cookie=None, out_root=None, progress=None,
         segs = whisper_transcribe(audio_path, progress)
         src_note = "Whisper large-v3 重新识别"
     else:
-        _log(progress, "② 抓取平台语音字幕（公开接口，无需登录）…")
-        segs = fetch_transcript(sub_id, tenant)
+        _log(progress, "② 抓取平台语音字幕…")
+        segs = fetch_transcript(sub_id, tenant, cookie=cookie)
         src_note = "平台字幕"
 
     per_seg, per_min, minutes = build_transcript_texts(segs)

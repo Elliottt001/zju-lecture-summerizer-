@@ -208,7 +208,7 @@ PAGE = """<!doctype html>
     <label class="ck"><input type="checkbox" id="savekey" checked>
       在本机记住 key 与 cookie（config.json，仅本人可读）</label>
 
-    <label>Cookie（可选）
+    <label>Cookie（接口要求登录时必填）
       <a class="plain" href="https://classroom.zju.edu.cn/" target="_blank">
         打开智云课堂登录页</a></label>
     <div class="row" style="margin-top:0">
@@ -218,10 +218,11 @@ PAGE = """<!doctype html>
     <textarea id="cookie"
       placeholder="或手动粘贴：浏览器 F12 → Network → 任一 classroom.zju.edu.cn 请求头里的 Cookie 整行"></textarea>
     <details><summary>自动读取失败时的手动获取方法</summary>
-      <div class="hint">① 点上方「打开智云课堂登录页」在 Edge 里登录；② 按 <b>F12</b> →
+      <div class="hint">① 点上方「打开智云课堂登录页」在浏览器里登录；② 按 <b>F12</b> →
       标签栏 <b>＋</b> → <b>网络（Network）</b>；③ <b>F5</b> 刷新，点任一
-      <b>classroom.zju.edu.cn</b> 请求；④ 右侧 <b>请求标头</b> 里 <b>Cookie:</b> 一行
-      <b>右键 → 复制值</b>。Cookie 只用于获取视频直链与 PPT 文字层，不填也能总结。</div>
+      <b>classroom.zju.edu.cn</b> 或 <b>yjapi.cmc.zju.edu.cn</b> 请求；④ 右侧 <b>请求标头</b> 里 <b>Cookie:</b> 一行
+      <b>右键 → 复制值</b>。Cookie 用于字幕、课程信息、视频和 PPT；返回 401 / 403 时，
+      请重新登录并复制包含 <b>_token</b> 的最新 Cookie。</div>
     </details>
 
     <label>参考课件（可选）</label>
